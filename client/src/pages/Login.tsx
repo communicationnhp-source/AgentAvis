@@ -18,9 +18,10 @@ export default function Login() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
-        credentials: "include",
       });
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.token) {
+        localStorage.setItem("auth_token", data.token);
         toast.success("Connexion réussie !");
         window.location.href = "/";
       } else {
