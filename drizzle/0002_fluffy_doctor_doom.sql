@@ -1,0 +1,1 @@
+ALTER TABLE `reviews` ADD CONSTRAINT `user_review_unique` UNIQUE(`userId`,`googleReviewId`);
