@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
 
 export interface SimpleUser {
@@ -21,8 +20,11 @@ export interface TrpcContext {
 }
 
 export async function createSimpleContext(req: Request, res: Response): Promise<TrpcContext> {
-  const sessionCookie = req.cookies[COOKIE_NAME];
-  const isAuthenticated = sessionCookie === "authenticated";
+  // Accepte le token soit en header Authorization, soit en cookie
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const isAuthenticated = token === adminPassword;
 
   return {
     user: isAuthenticated
@@ -49,20 +51,14 @@ export function registerSimpleAuthRoutes(app: any) {
     const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 
     if (password === adminPassword) {
-      const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, "authenticated", {
-        ...cookieOptions,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      });
-      res.json({ success: true });
+      // Retourne le token (= le mot de passe) que le client stocke en localStorage
+      res.json({ success: true, token: adminPassword });
     } else {
       res.status(401).json({ error: "Invalid password" });
     }
   });
 
-  app.post("/api/auth/logout", (req: Request, res: Response) => {
-    const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+  app.post("/api/auth/logout", (_req: Request, res: Response) => {
     res.json({ success: true });
   });
 }
