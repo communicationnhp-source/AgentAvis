@@ -15,30 +15,29 @@ export interface SimpleUser {
 }
 
 export interface TrpcContext {
-  user: SimpleUser;
+  user: SimpleUser | null;
   req: Request;
   res: Response;
 }
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
-
 export async function createSimpleContext(req: Request, res: Response): Promise<TrpcContext> {
-  // Check if user has session cookie
   const sessionCookie = req.cookies[COOKIE_NAME];
   const isAuthenticated = sessionCookie === "authenticated";
 
   return {
-    user: {
-      id: 1,
-      openId: "simple-user",
-      name: "Admin",
-      email: null,
-      loginMethod: "simple",
-      role: isAuthenticated ? "admin" : "user",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastSignedIn: new Date(),
-    },
+    user: isAuthenticated
+      ? {
+          id: 1,
+          openId: "simple-user",
+          name: "Admin",
+          email: null,
+          loginMethod: "simple",
+          role: "admin",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastSignedIn: new Date(),
+        }
+      : null,
     req,
     res,
   };
@@ -47,10 +46,14 @@ export async function createSimpleContext(req: Request, res: Response): Promise<
 export function registerSimpleAuthRoutes(app: any) {
   app.post("/api/auth/login", (req: Request, res: Response) => {
     const { password } = req.body;
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 
-    if (password === ADMIN_PASSWORD) {
+    if (password === adminPassword) {
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, "authenticated", { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
+      res.cookie(COOKIE_NAME, "authenticated", {
+        ...cookieOptions,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
       res.json({ success: true });
     } else {
       res.status(401).json({ error: "Invalid password" });
