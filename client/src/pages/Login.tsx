@@ -10,20 +10,18 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
+    if (!password.trim()) return;
     setIsLoading(true);
-
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
+        credentials: "include",
       });
-
       if (response.ok) {
         toast.success("Connexion réussie !");
-        // Reload page to update auth state
         window.location.href = "/";
       } else {
         toast.error("Mot de passe incorrect");
@@ -46,9 +44,8 @@ export default function Login() {
           </div>
           <CardTitle className="text-2xl">Agent de Réponse aux Avis</CardTitle>
         </CardHeader>
-
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="password" className="font-medium">
                 Mot de passe
@@ -59,16 +56,13 @@ export default function Login() {
                 placeholder="Entrez le mot de passe"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 disabled={isLoading}
                 className="text-base"
               />
-              <p className="text-xs text-slate-500">
-                Entrez le mot de passe pour accéder à l'application
-              </p>
             </div>
-
             <Button
-              type="submit"
+              onClick={handleLogin}
               disabled={isLoading || !password.trim()}
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
@@ -81,12 +75,6 @@ export default function Login() {
                 "Se connecter"
               )}
             </Button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-xs text-slate-500 text-center">
-              Mot de passe par défaut : <code className="bg-slate-100 px-2 py-1 rounded">admin123</code>
-            </p>
           </div>
         </CardContent>
       </Card>
