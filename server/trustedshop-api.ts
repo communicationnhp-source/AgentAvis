@@ -130,6 +130,4 @@ export class TrustedShopAPI {
     throw new Error(`Failed to post reply after ${maxRetries} attempts: ${lastError?.message}`);
   }
 }
-    throw new Error(`Failed to post reply to eTrusted review after ${maxRetries} attempts: ${lastError?.message}`);
-  }
-}
+  
