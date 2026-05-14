@@ -102,24 +102,20 @@ async function startServer() {
     const creds = await getTrustedshopCredentialsByUserId(1);
     if (!creds) return res.json({ error: "No TrustedShop credentials found in DB" });
 
-    // eTrusted utilise form-urlencoded pas JSON
     const params = new URLSearchParams();
     params.append("grant_type", "client_credentials");
     params.append("client_id", creds.clientId);
     params.append("client_secret", creds.clientSecret);
+    params.append("audience", "https://api.etrusted.com");
 
-    const response = await fetch("https://api.etrusted.com/oauth/token", {
+    const response = await fetch("https://login.etrusted.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
     });
 
     const text = await response.text();
-    res.json({ 
-      status: response.status,
-      body: text,
-      clientIdPrefix: creds.clientId.substring(0, 8) + "...",
-    });
+    res.json({ status: response.status, body: text });
   } catch (error) {
     res.json({ error: error instanceof Error ? error.message : String(error) });
   }
