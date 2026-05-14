@@ -3,7 +3,7 @@ import axios from "axios";
 // Google Business Profile API v1 (la v4 mybusiness est dépréciée depuis 2022)
 const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_ACCOUNT_API = "https://mybusinessaccountmanagement.googleapis.com/v1";
-const GOOGLE_REVIEWS_API = "https://mybusiness.googleapis.com/v1";
+const GOOGLE_REVIEWS_API = "https://mybusinessreviews.googleapis.com/v1";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
