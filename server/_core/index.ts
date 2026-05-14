@@ -65,10 +65,10 @@ async function startServer() {
   // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() });
-  });app.get("/api/debug/google", async (_req, res) => {
+app.get("/api/debug/google", async (_req, res) => {
   try {
     const { getGoogleCredentialsByUserId } = await import("../db");
-    const { getAccessToken, fetchReviews } = await import("../google-api");
+    const { getAccessToken } = await import("../google-api");
     
     const creds = await getGoogleCredentialsByUserId(1);
     if (!creds) return res.json({ error: "No credentials" });
@@ -78,6 +78,42 @@ async function startServer() {
       clientSecret: creds.clientSecret,
       refreshToken: creds.refreshToken,
     });
+
+    const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
+    console.log("[Debug] Fetching:", url);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    const text = await response.text();
+    res.json({ 
+      url,
+      status: response.status,
+      body: text
+    });
+  } catch (error) {
+    res.json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+    const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
+    console.log("[Debug] Fetching:", url);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    const text = await response.text();
+    res.json({ 
+      url,
+      status: response.status,
+      body: text
+    });
+  } catch (error) {
+    res.json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
     
     const reviews = await fetchReviews(token, creds.businessProfileId);
     res.json({ 
