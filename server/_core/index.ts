@@ -68,32 +68,33 @@ async function startServer() {
   });
 
   app.get("/api/debug/google", async (_req, res) => {
-    try {
-      const { getGoogleCredentialsByUserId } = await import("../db");
-      const { getAccessToken } = await import("../google-api");
+  try {
+    const { getGoogleCredentialsByUserId } = await import("../db");
+    const { getAccessToken } = await import("../google-api");
 
-      const creds = await getGoogleCredentialsByUserId(1);
-      if (!creds) return res.json({ error: "No credentials found in DB" });
+    const creds = await getGoogleCredentialsByUserId(1);
+    if (!creds) return res.json({ error: "No credentials found in DB" });
 
-      const token = await getAccessToken({
-        clientId: creds.clientId,
-        clientSecret: creds.clientSecret,
-        refreshToken: creds.refreshToken,
-      });
+    const token = await getAccessToken({
+      clientId: creds.clientId,
+      clientSecret: creds.clientSecret,
+      refreshToken: creds.refreshToken,
+    });
 
-      const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
-      console.log("[Debug] Fetching:", url);
+    // Test direct avec la nouvelle API
+    const url = `https://mybusinessreviews.googleapis.com/v1/${creds.businessProfileId}/reviews`;
+    console.log("[Debug] Fetching:", url);
 
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const text = await response.text();
-      res.json({ url, status: response.status, body: text });
-    } catch (error) {
-      res.json({ error: error instanceof Error ? error.message : String(error) });
-    }
-  });
+    const text = await response.text();
+    res.json({ url, status: response.status, body: text });
+  } catch (error) {
+    res.json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
 
   app.post("/api/scheduled/process-reviews", handleProcessReviews);
 
