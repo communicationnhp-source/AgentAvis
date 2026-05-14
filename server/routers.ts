@@ -155,6 +155,18 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return await getTrustedshopResponsesByUserId(ctx.user.id, input.limit || 50, input.offset || 0);
       }),
+    processReviews: adminProcedure.mutation(async ({ ctx }) => {
+      const { processTrustedShopReviews } = await import("./trustedshop-processor");
+      try {
+        const result = await processTrustedShopReviews(ctx.user.id);
+        return { success: true, result };
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }),
   }),
 });
 
