@@ -85,7 +85,7 @@ export async function processTrustedShopReviews(userId: number): Promise<Process
       }
 
       // Sauvegarder l'avis
-      const [storedReview] = await db
+      await db
         .insert(trustedshopReviews)
         .values({
           userId,
@@ -93,16 +93,16 @@ export async function processTrustedShopReviews(userId: number): Promise<Process
           authorName,
           rating,
           reviewText: comment,
-          reviewTitle: review.title || "",
           reviewDate: new Date(review.createdAt),
           hasResponse: false,
         })
-        .onDuplicateKeyUpdate({
-          set: { updatedAt: new Date() },
-        })
-        .then(() =>
-          db.select().from(trustedshopReviews).where(eq(trustedshopReviews.trustedshopReviewId, review.id)).limit(1)
-        );
+        .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+
+      const [storedReview] = await db
+        .select()
+        .from(trustedshopReviews)
+        .where(eq(trustedshopReviews.trustedshopReviewId, review.id))
+        .limit(1);
 
       if (!storedReview) throw new Error("Failed to store review");
 
