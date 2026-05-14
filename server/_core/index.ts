@@ -28,8 +28,11 @@ async function runMigrations() {
 }
 
 function basicAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // Pas d'auth sur le health check et le cron
-  if (req.path === "/api/health" || req.path.startsWith("/api/scheduled") || req.path.startsWith("/api/debug")) {
+  if (
+    req.path === "/api/health" ||
+    req.path.startsWith("/api/scheduled") ||
+    req.path.startsWith("/api/debug")
+  ) {
     return next();
   }
 
@@ -58,79 +61,42 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cookieParser());
-
-  // Basic Auth sur tout
   app.use(basicAuth);
 
-  // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() });
-app.get("/api/debug/google", async (_req, res) => {
-  try {
-    const { getGoogleCredentialsByUserId } = await import("../db");
-    const { getAccessToken } = await import("../google-api");
-    
-    const creds = await getGoogleCredentialsByUserId(1);
-    if (!creds) return res.json({ error: "No credentials" });
-    
-    const token = await getAccessToken({
-      clientId: creds.clientId,
-      clientSecret: creds.clientSecret,
-      refreshToken: creds.refreshToken,
-    });
+  });
 
-    const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
-    console.log("[Debug] Fetching:", url);
+  app.get("/api/debug/google", async (_req, res) => {
+    try {
+      const { getGoogleCredentialsByUserId } = await import("../db");
+      const { getAccessToken } = await import("../google-api");
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    const text = await response.text();
-    res.json({ 
-      url,
-      status: response.status,
-      body: text
-    });
-  } catch (error) {
-    res.json({ error: error instanceof Error ? error.message : String(error) });
-  }
-});
+      const creds = await getGoogleCredentialsByUserId(1);
+      if (!creds) return res.json({ error: "No credentials found in DB" });
 
-    const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
-    console.log("[Debug] Fetching:", url);
+      const token = await getAccessToken({
+        clientId: creds.clientId,
+        clientSecret: creds.clientSecret,
+        refreshToken: creds.refreshToken,
+      });
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    const text = await response.text();
-    res.json({ 
-      url,
-      status: response.status,
-      body: text
-    });
-  } catch (error) {
-    res.json({ error: error instanceof Error ? error.message : String(error) });
-  }
-});
-    
-    const reviews = await fetchReviews(token, creds.businessProfileId);
-    res.json({ 
-      credentialsFound: true,
-      businessProfileId: creds.businessProfileId,
-      reviewCount: reviews.length,
-      reviews: reviews.slice(0, 2)
-    });
-  } catch (error) {
-    res.json({ error: error instanceof Error ? error.message : String(error) });
-  }
-});
+      const url = `https://mybusiness.googleapis.com/v1/${creds.businessProfileId}/reviews`;
+      console.log("[Debug] Fetching:", url);
 
-  // Cron
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const text = await response.text();
+      res.json({ url, status: response.status, body: text });
+    } catch (error) {
+      res.json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post("/api/scheduled/process-reviews", handleProcessReviews);
 
-  // tRPC — user toujours authentifié si on arrive ici
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -139,17 +105,20 @@ app.get("/api/debug/google", async (_req, res) => {
     })
   );
 
+  const port = parseInt(process.env.PORT || "3000");
+  const server = createServer(app);
+
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  const port = parseInt(process.env.PORT || "3000");
-  const server = createServer(app);
-
   server.listen(port, "0.0.0.0", () => {
     console.log(`🚀 Server running on http://0.0.0.0:${port}/`);
+    console.log(`   Health:  GET  /api/health`);
+    console.log(`   Debug:   GET  /api/debug/google`);
+    console.log(`   Cron:    POST /api/scheduled/process-reviews`);
   });
 }
 
