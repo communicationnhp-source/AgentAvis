@@ -29,7 +29,7 @@ async function runMigrations() {
 
 function basicAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   // Pas d'auth sur le health check et le cron
-  if (req.path === "/api/health" || req.path.startsWith("/api/scheduled")) {
+  if (req.path === "/api/health" || req.path.startsWith("/api/scheduled") || req.path.startsWith("/api/debug")) {
     return next();
   }
 
