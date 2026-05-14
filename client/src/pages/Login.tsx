@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { savePassword } from "@/lib/trpc";
 
 export default function Login() {
   const [password, setPassword] = useState("");
@@ -14,14 +15,13 @@ export default function Login() {
     if (!password.trim()) return;
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+      const response = await fetch("/api/health", {
+        headers: {
+          Authorization: `Basic ${btoa("admin:" + password)}`,
+        },
       });
-      const data = await response.json();
-      if (response.ok && data.token) {
-        localStorage.setItem("auth_token", data.token);
+      if (response.ok) {
+        savePassword(password);
         toast.success("Connexion réussie !");
         window.location.href = "/";
       } else {
@@ -48,9 +48,7 @@ export default function Login() {
         <CardContent>
           <div className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-medium">
-                Mot de passe
-              </Label>
+              <Label htmlFor="password">Mot de passe</Label>
               <Input
                 id="password"
                 type="password"
@@ -59,7 +57,6 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 disabled={isLoading}
-                className="text-base"
               />
             </div>
             <Button
@@ -68,13 +65,8 @@ export default function Login() {
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Connexion en cours...
-                </>
-              ) : (
-                "Se connecter"
-              )}
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connexion...</>
+              ) : "Se connecter"}
             </Button>
           </div>
         </CardContent>
