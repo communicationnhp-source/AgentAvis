@@ -65,7 +65,31 @@ async function startServer() {
   // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() });
-  });
+  });app.get("/api/debug/google", async (_req, res) => {
+  try {
+    const { getGoogleCredentialsByUserId } = await import("../db");
+    const { getAccessToken, fetchReviews } = await import("../google-api");
+    
+    const creds = await getGoogleCredentialsByUserId(1);
+    if (!creds) return res.json({ error: "No credentials" });
+    
+    const token = await getAccessToken({
+      clientId: creds.clientId,
+      clientSecret: creds.clientSecret,
+      refreshToken: creds.refreshToken,
+    });
+    
+    const reviews = await fetchReviews(token, creds.businessProfileId);
+    res.json({ 
+      credentialsFound: true,
+      businessProfileId: creds.businessProfileId,
+      reviewCount: reviews.length,
+      reviews: reviews.slice(0, 2)
+    });
+  } catch (error) {
+    res.json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
 
   // Cron
   app.post("/api/scheduled/process-reviews", handleProcessReviews);
