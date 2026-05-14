@@ -98,24 +98,20 @@ async function startServer() {
   app.get("/api/debug/trustedshop", async (_req, res) => {
   try {
     const { getTrustedshopCredentialsByUserId } = await import("../db");
+    const { TrustedShopAPI } = await import("../trustedshop-api");
 
     const creds = await getTrustedshopCredentialsByUserId(1);
     if (!creds) return res.json({ error: "No TrustedShop credentials found in DB" });
 
-    const params = new URLSearchParams();
-    params.append("grant_type", "client_credentials");
-    params.append("client_id", creds.clientId);
-    params.append("client_secret", creds.clientSecret);
-    params.append("audience", "https://api.etrusted.com");
+    const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+    const reviews = await api.fetchReviews(10);
 
-    const response = await fetch("https://login.etrusted.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
+    res.json({
+      credentialsFound: true,
+      channelId: creds.channelId,
+      reviewCount: reviews.length,
+      firstReview: reviews[0] || null,
     });
-
-    const text = await response.text();
-    res.json({ status: response.status, body: text });
   } catch (error) {
     res.json({ error: error instanceof Error ? error.message : String(error) });
   }
