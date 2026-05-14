@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
-import { createSimpleContext, registerSimpleAuthRoutes } from "./context-simple";
+import { createSimpleContext } from "./context-simple";
 import { serveStatic, setupVite } from "./vite";
 import { handleProcessReviews } from "../scheduled-handlers";
 
@@ -23,43 +23,54 @@ async function runMigrations() {
     await migrate(db, { migrationsFolder: "./drizzle" });
     console.log("[DB] Migrations complete ✅");
   } catch (error) {
-    // Non-fatal: log and continue (tables may already exist)
-    console.warn("[DB] Migration warning (may already be up to date):", error);
+    console.warn("[DB] Migration warning:", error);
   }
 }
 
+function basicAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  // Pas d'auth sur le health check et le cron
+  if (req.path === "/api/health" || req.path.startsWith("/api/scheduled")) {
+    return next();
+  }
+
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const authHeader = req.headers["authorization"] || "";
+
+  if (authHeader.startsWith("Basic ")) {
+    const base64 = authHeader.slice(6);
+    const decoded = Buffer.from(base64, "base64").toString("utf-8");
+    const [, password] = decoded.split(":");
+    if (password === adminPassword) {
+      return next();
+    }
+  }
+
+  res.setHeader("WWW-Authenticate", 'Basic realm="Agent Avis"');
+  res.status(401).send("Accès refusé");
+}
+
 async function startServer() {
-  // Appliquer les migrations avant de démarrer
   await runMigrations();
 
   const app = express();
   app.set("trust proxy", 1);
-  app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-  const server = createServer(app);
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cookieParser());
 
-  registerSimpleAuthRoutes(app);
-  registerStorageProxy(app);
+  // Basic Auth sur tout
+  app.use(basicAuth);
 
-  // Endpoint cron (appelé par Railway Cron Service)
-  app.post("/api/scheduled/process-reviews", handleProcessReviews);
-
-  // Health check pour Railway
+  // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() });
   });
 
-  // tRPC API
+  // Cron
+  app.post("/api/scheduled/process-reviews", handleProcessReviews);
+
+  // tRPC — user toujours authentifié si on arrive ici
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -75,11 +86,10 @@ async function startServer() {
   }
 
   const port = parseInt(process.env.PORT || "3000");
+  const server = createServer(app);
 
   server.listen(port, "0.0.0.0", () => {
     console.log(`🚀 Server running on http://0.0.0.0:${port}/`);
-    console.log(`   Cron endpoint: POST /api/scheduled/process-reviews`);
-    console.log(`   Health check:  GET  /api/health`);
   });
 }
 
