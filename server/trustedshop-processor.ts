@@ -18,7 +18,7 @@ function getToneByRating(rating: number): string {
   return "désolé, empathique et orienté actions correctives";
 }
 
-async function generateResponse(rating: number, comment: string, authorName: string): Promise<string> {
+async function generateResponse(rating: number, comment: string): Promise<string> {
   const tone = getToneByRating(rating);
   const result = await invokeLLM({
     messages: [
@@ -27,13 +27,12 @@ async function generateResponse(rating: number, comment: string, authorName: str
         content: `Tu es un professionnel qui répond aux avis clients TrustedShop de manière authentique.
 Ton ton doit être ${tone}.
 Garde les réponses concises (2-3 phrases maximum).
-Remercie le client par son prénom si disponible.
+Ne mentionne jamais le prénom ou le nom du client dans ta réponse.
 Réponds dans la même langue que l'avis.
 Ne génère que le texte de la réponse, rien d'autre.
 
 Génère une réponse à cet avis :
 Note : ${rating}/5 étoiles
-Auteur : ${authorName}
 Avis : "${comment}"`,
       },
     ],
@@ -107,7 +106,7 @@ export async function processTrustedShopReviews(userId: number): Promise<Process
       if (!storedReview) throw new Error("Failed to store review");
 
       // Générer la réponse
-      const responseText = await generateResponse(rating, comment, authorName);
+      const responseText = await generateResponse(rating, comment);
 
       // Sauvegarder la réponse
       await db.insert(trustedshopResponses).values({
