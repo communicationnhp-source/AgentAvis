@@ -94,6 +94,26 @@ async function startServer() {
   } catch (error) {
     res.json({ error: error instanceof Error ? error.message : String(error) });
   }
+});app.get("/api/debug/trustedshop", async (_req, res) => {
+  try {
+    const { getTrustedshopCredentialsByUserId } = await import("../db");
+    const { TrustedShopAPI } = await import("../trustedshop-api");
+
+    const creds = await getTrustedshopCredentialsByUserId(1);
+    if (!creds) return res.json({ error: "No TrustedShop credentials found in DB" });
+
+    const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+    const reviews = await api.fetchReviews(10);
+    
+    res.json({ 
+      credentialsFound: true,
+      channelId: creds.channelId,
+      reviewCount: reviews.length,
+      reviews: reviews.slice(0, 2)
+    });
+  } catch (error) {
+    res.json({ error: error instanceof Error ? error.message : String(error) });
+  }
 });
 
   app.post("/api/scheduled/process-reviews", handleProcessReviews);
