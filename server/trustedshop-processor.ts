@@ -71,17 +71,25 @@ export async function processTrustedShopReviews(userId: number): Promise<Process
       const authorName = review.customer?.fullName || "Client";
       const rating = review.rating || 3;
 
-      // Vérifier si on a déjà une réponse pour cet avis
-      const existing = await db
-        .select()
-        .from(trustedshopReviews)
-        .where(eq(trustedshopReviews.trustedshopReviewId, review.id))
-        .limit(1);
+      // Vérifier si on a déjà une réponse pour cet avis (draft ou published)
+const existing = await db
+  .select()
+  .from(trustedshopReviews)
+  .where(eq(trustedshopReviews.trustedshopReviewId, review.id))
+  .limit(1);
 
-      if (existing.length > 0 && existing[0].hasResponse) {
-        console.log(`[TS Processor] Review ${review.id} already has a response, skipping`);
-        continue;
-      }
+if (existing.length > 0) {
+  const existingResponse = await db
+    .select()
+    .from(trustedshopResponses)
+    .where(eq(trustedshopResponses.reviewId, existing[0].id))
+    .limit(1);
+
+  if (existingResponse.length > 0) {
+    console.log(`[TS Processor] Review ${review.id} already has a response, skipping`);
+    continue;
+  }
+}
 
       // Sauvegarder l'avis
       await db
