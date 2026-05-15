@@ -303,8 +303,7 @@ export async function getTrustedshopResponsesByUserId(userId: number, limit: num
       reviewDate: trustedshopReviews.reviewDate,
     })
     .from(trustedshopResponses)
-    .innerJoin(trustedshopReviews, eq(trustedshopResponses.reviewId, trustedshopReviews.id))
-    .where(eq(trustedshopResponses.userId, userId))
+    .leftJoin(trustedshopReviews, eq(trustedshopResponses.reviewId, trustedshopReviews.id))
     .orderBy(desc(trustedshopResponses.createdAt))
     .limit(limit)
     .offset(offset);
