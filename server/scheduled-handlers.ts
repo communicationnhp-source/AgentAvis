@@ -1,15 +1,11 @@
 import { Request, Response } from "express";
 import { processAllReviews } from "./review-processor";
+import { processTrustedShopReviews } from "./trustedshop-processor";
+import { getDb } from "./db";
+import { users } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
-/**
- * Handler pour le traitement planifié des avis.
- * Appelé par le Railway Cron Service (ou n'importe quel scheduler HTTP).
- *
- * Sécurisé par un secret partagé (CRON_SECRET) passé dans le header
- * Authorization: Bearer <CRON_SECRET>
- */
 export async function handleProcessReviews(req: Request, res: Response) {
-  // Vérification du secret cron
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = req.headers["authorization"] || "";
@@ -18,33 +14,48 @@ export async function handleProcessReviews(req: Request, res: Response) {
       return res.status(403).json({ error: "Forbidden: invalid cron secret" });
     }
   } else {
-    // Pas de secret configuré : avertissement mais on continue
-    // (utile en dev, mais à configurer en prod !)
     console.warn("[Scheduled Handler] ⚠️  CRON_SECRET not set — endpoint is unprotected!");
   }
 
   console.log(`[Scheduled Handler] Processing reviews triggered at ${new Date().toISOString()}`);
 
   try {
-    const results = await processAllReviews();
+    // Google reviews
+    const googleResults = await processAllReviews();
 
-    const totalProcessed = results.reduce((sum, r) => sum + r.processed, 0);
-    const totalPublished = results.reduce((sum, r) => sum + r.published, 0);
-    const totalFailed = results.reduce((sum, r) => sum + r.failed, 0);
-    const allErrors = results.flatMap((r) => r.errors);
+    // TrustedShop — pour chaque admin
+    const db = await getDb();
+    const tsResults: any[] = [];
+    if (db) {
+      const adminUsers = await db.select().from(users).where(eq(users.role, "admin"));
+      for (const user of adminUsers) {
+        try {
+          const result = await processTrustedShopReviews(user.id);
+          tsResults.push(result);
+        } catch (error) {
+          tsResults.push({ userId: user.id, processed: 0, failed: 1, errors: [String(error)] });
+        }
+      }
+    }
 
-    console.log(
-      `[Scheduled Handler] Done: ${totalProcessed} processed, ${totalPublished} published, ${totalFailed} failed`
-    );
+    const totalProcessed = googleResults.reduce((sum, r) => sum + r.processed, 0)
+      + tsResults.reduce((sum, r) => sum + r.processed, 0);
+    const totalFailed = googleResults.reduce((sum, r) => sum + r.failed, 0)
+      + tsResults.reduce((sum, r) => sum + r.failed, 0);
+    const allErrors = [
+      ...googleResults.flatMap((r) => r.errors),
+      ...tsResults.flatMap((r) => r.errors),
+    ];
+
+    console.log(`[Scheduled Handler] Done: ${totalProcessed} processed, ${totalFailed} failed`);
 
     res.json({
       ok: true,
       timestamp: new Date().toISOString(),
       summary: {
         totalProcessed,
-        totalPublished,
         totalFailed,
-        usersProcessed: results.length,
+        usersProcessed: googleResults.length + tsResults.length,
       },
       errors: allErrors.length > 0 ? allErrors : undefined,
     });
