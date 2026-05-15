@@ -304,7 +304,7 @@ export async function getTrustedshopResponsesByUserId(userId: number, limit: num
     })
     .from(trustedshopResponses)
     .leftJoin(trustedshopReviews, eq(trustedshopResponses.reviewId, trustedshopReviews.id))
-    .orderBy(desc(trustedshopResponses.createdAt))
+    .orderBy(desc(trustedshopReviews.reviewDate))
     .limit(limit)
     .offset(offset);
 }
