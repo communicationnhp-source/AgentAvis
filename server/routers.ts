@@ -13,7 +13,6 @@ import {
   getTrustedshopResponsesByUserId,
 } from "./db";
 
-// Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
@@ -32,12 +31,10 @@ export const appRouter = router({
     }),
   }),
 
-  // Google Reviews — credentials (admin only)
   googleCredentials: router({
     get: adminProcedure.query(async ({ ctx }) => {
       const creds = await getGoogleCredentialsByUserId(ctx.user.id);
       if (!creds) return null;
-      // Ne pas renvoyer les secrets au frontend
       return {
         id: creds.id,
         businessProfileId: creds.businessProfileId,
@@ -74,7 +71,6 @@ export const appRouter = router({
       }),
   }),
 
-  // Google Reviews — liste des avis
   reviews: router({
     list: adminProcedure
       .input((val: any) => ({
@@ -86,7 +82,6 @@ export const appRouter = router({
       }),
   }),
 
-  // Google Reviews — liste des réponses générées
   responses: router({
     list: adminProcedure
       .input((val: any) => ({
@@ -98,9 +93,7 @@ export const appRouter = router({
       }),
   }),
 
-  // Google Reviews — actions manuelles
   googleReviews: router({
-    // Déclenche manuellement le traitement des avis (depuis le dashboard)
     testFetch: adminProcedure.mutation(async ({ ctx }) => {
       const { processReviewsForUser } = await import("./review-processor");
       try {
@@ -115,7 +108,6 @@ export const appRouter = router({
     }),
   }),
 
-  // TrustedShop — credentials
   trustedshop: router({
     getCredentials: adminProcedure.query(async ({ ctx }) => {
       const creds = await getTrustedshopCredentialsByUserId(ctx.user.id);
@@ -166,42 +158,51 @@ export const appRouter = router({
           message: error instanceof Error ? error.message : "Unknown error",
         });
       }
-      publishReply: adminProcedure
-  .input((val: any) => ({
-    responseId: val.responseId as number,
-    reviewId: val.reviewId as number,
-    trustedshopReviewId: val.trustedshopReviewId as string,
-    responseText: val.responseText as string,
-  }))
-  .mutation(async ({ ctx, input }) => {
-    const { getTrustedshopCredentialsByUserId, getDb } = await import("./db");
-    const { TrustedShopAPI } = await import("./trustedshop-api");
-    const { trustedshopResponses } = await import("../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
+    }),
+    publishReply: adminProcedure
+      .input((val: any) => ({
+        responseId: val.responseId as number,
+        reviewId: val.reviewId as number,
+        responseText: val.responseText as string,
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("./db");
+        const { TrustedShopAPI } = await import("./trustedshop-api");
+        const { trustedshopResponses, trustedshopReviews } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
 
-    const creds = await getTrustedshopCredentialsByUserId(ctx.user.id);
-    if (!creds) throw new TRPCError({ code: "NOT_FOUND", message: "No TrustedShop credentials" });
+        const creds = await getTrustedshopCredentialsByUserId(ctx.user.id);
+        if (!creds) throw new TRPCError({ code: "NOT_FOUND", message: "No TrustedShop credentials" });
 
-    const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
-    try {
-      await api.postReply(input.trustedshopReviewId, input.responseText);
+        const review = await db
+          .select()
+          .from(trustedshopReviews)
+          .where(eq(trustedshopReviews.id, input.reviewId))
+          .limit(1);
 
-      const db = await getDb();
-      if (db) {
-        await db
-          .update(trustedshopResponses)
-          .set({ status: "published", publishedAt: new Date() })
-          .where(eq(trustedshopResponses.id, input.responseId));
-      }
+        if (!review.length) throw new TRPCError({ code: "NOT_FOUND", message: "Review not found" });
 
-      return { success: true };
-    } catch (error) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
+        const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+
+        try {
+          await api.postReply(review[0].trustedshopReviewId, input.responseText);
+
+          await db
+            .update(trustedshopResponses)
+            .set({ status: "published", publishedAt: new Date() })
+            .where(eq(trustedshopResponses.id, input.responseId));
+
+          return { success: true };
+        } catch (error) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }),
   }),
 });
 
