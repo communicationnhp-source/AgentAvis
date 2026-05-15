@@ -52,6 +52,32 @@ function basicAuth(req: express.Request, res: express.Response, next: express.Ne
   res.status(401).send("Accès refusé");
 }
 
+function startCron(port: number) {
+  const interval = 15 * 60 * 1000; // 15 minutes
+
+  const run = async () => {
+    console.log(`[Cron] Auto-processing reviews at ${new Date().toISOString()}`);
+    try {
+      const res = await fetch(`http://localhost:${port}/api/scheduled/process-reviews`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET || ""}` },
+      });
+      const data = await res.json();
+      console.log("[Cron] Done:", JSON.stringify(data.summary));
+    } catch (e) {
+      console.error("[Cron] Failed:", e);
+    }
+  };
+
+  // Premier run 1 minute après le démarrage, puis toutes les 15 min
+  setTimeout(() => {
+    run();
+    setInterval(run, interval);
+  }, 60 * 1000);
+
+  console.log("[Cron] Scheduled — runs every 15 minutes");
+}
+
 async function startServer() {
   await runMigrations();
 
@@ -68,54 +94,54 @@ async function startServer() {
   });
 
   app.get("/api/debug/google", async (_req, res) => {
-  try {
-    const { getGoogleCredentialsByUserId } = await import("../db");
-    const { getAccessToken } = await import("../google-api");
+    try {
+      const { getGoogleCredentialsByUserId } = await import("../db");
+      const { getAccessToken } = await import("../google-api");
 
-    const creds = await getGoogleCredentialsByUserId(1);
-    if (!creds) return res.json({ error: "No credentials found in DB" });
+      const creds = await getGoogleCredentialsByUserId(1);
+      if (!creds) return res.json({ error: "No credentials found in DB" });
 
-    const token = await getAccessToken({
-      clientId: creds.clientId,
-      clientSecret: creds.clientSecret,
-      refreshToken: creds.refreshToken,
-    });
+      const token = await getAccessToken({
+        clientId: creds.clientId,
+        clientSecret: creds.clientSecret,
+        refreshToken: creds.refreshToken,
+      });
 
-    // Test direct avec la nouvelle API
-    const url = `https://mybusinessreviews.googleapis.com/v1/${creds.businessProfileId}/reviews`;
-    console.log("[Debug] Fetching:", url);
+      const url = `https://mybusinessreviews.googleapis.com/v1/${creds.businessProfileId}/reviews`;
+      console.log("[Debug] Fetching:", url);
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const text = await response.text();
-    res.json({ url, status: response.status, body: text });
-  } catch (error) {
-    res.json({ error: error instanceof Error ? error.message : String(error) });
-  }
-});
+      const text = await response.text();
+      res.json({ url, status: response.status, body: text });
+    } catch (error) {
+      res.json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.get("/api/debug/trustedshop", async (_req, res) => {
-  try {
-    const { getTrustedshopCredentialsByUserId } = await import("../db");
-    const { TrustedShopAPI } = await import("../trustedshop-api");
+    try {
+      const { getTrustedshopCredentialsByUserId } = await import("../db");
+      const { TrustedShopAPI } = await import("../trustedshop-api");
 
-    const creds = await getTrustedshopCredentialsByUserId(1);
-    if (!creds) return res.json({ error: "No TrustedShop credentials found in DB" });
+      const creds = await getTrustedshopCredentialsByUserId(1);
+      if (!creds) return res.json({ error: "No TrustedShop credentials found in DB" });
 
-    const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
-    const reviews = await api.fetchReviews(10);
+      const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+      const reviews = await api.fetchReviews(10);
 
-    res.json({
-      credentialsFound: true,
-      channelId: creds.channelId,
-      reviewCount: reviews.length,
-      firstReview: reviews[0] || null,
-    });
-  } catch (error) {
-    res.json({ error: error instanceof Error ? error.message : String(error) });
-  }
-});
+      res.json({
+        credentialsFound: true,
+        channelId: creds.channelId,
+        reviewCount: reviews.length,
+        firstReview: reviews[0] || null,
+      });
+    } catch (error) {
+      res.json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
 
   app.post("/api/scheduled/process-reviews", handleProcessReviews);
 
@@ -141,6 +167,7 @@ async function startServer() {
     console.log(`   Health:  GET  /api/health`);
     console.log(`   Debug:   GET  /api/debug/google`);
     console.log(`   Cron:    POST /api/scheduled/process-reviews`);
+    startCron(port);
   });
 }
 
