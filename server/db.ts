@@ -5,7 +5,6 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -85,7 +84,6 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -114,10 +112,7 @@ export async function upsertGoogleCredentials(data: InsertGoogleCredentials): Pr
     .limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(googleCredentials)
-      .set(data)
-      .where(eq(googleCredentials.userId, data.userId));
+    await db.update(googleCredentials).set(data).where(eq(googleCredentials.userId, data.userId));
   } else {
     await db.insert(googleCredentials).values(data);
   }
@@ -130,21 +125,11 @@ export async function getReviewsByUserId(userId: number, limit: number = 50, off
 
   const conditions = [eq(reviews.userId, userId)];
 
-  if (filters?.minRating !== undefined) {
-    conditions.push(gte(reviews.rating, filters.minRating));
-  }
-  if (filters?.maxRating !== undefined) {
-    conditions.push(lte(reviews.rating, filters.maxRating));
-  }
-  if (filters?.startDate) {
-    conditions.push(gte(reviews.reviewDate, filters.startDate));
-  }
-  if (filters?.endDate) {
-    conditions.push(lte(reviews.reviewDate, filters.endDate));
-  }
-  if (filters?.hasResponse !== undefined) {
-    conditions.push(eq(reviews.hasResponse, filters.hasResponse));
-  }
+  if (filters?.minRating !== undefined) conditions.push(gte(reviews.rating, filters.minRating));
+  if (filters?.maxRating !== undefined) conditions.push(lte(reviews.rating, filters.maxRating));
+  if (filters?.startDate) conditions.push(gte(reviews.reviewDate, filters.startDate));
+  if (filters?.endDate) conditions.push(lte(reviews.reviewDate, filters.endDate));
+  if (filters?.hasResponse !== undefined) conditions.push(eq(reviews.hasResponse, filters.hasResponse));
 
   return await db
     .select()
@@ -176,10 +161,7 @@ export async function upsertReview(data: InsertReview): Promise<Review | undefin
     .limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(reviews)
-      .set(data)
-      .where(eq(reviews.id, existing[0].id));
+    await db.update(reviews).set(data).where(eq(reviews.id, existing[0].id));
     return existing[0];
   } else {
     const result = await db.insert(reviews).values(data);
@@ -194,15 +176,9 @@ export async function getResponsesByUserId(userId: number, limit: number = 50, o
 
   const conditions = [eq(responses.userId, userId)];
 
-  if (filters?.status) {
-    conditions.push(eq(responses.status, filters.status));
-  }
-  if (filters?.startDate) {
-    conditions.push(gte(responses.createdAt, filters.startDate));
-  }
-  if (filters?.endDate) {
-    conditions.push(lte(responses.createdAt, filters.endDate));
-  }
+  if (filters?.status) conditions.push(eq(responses.status, filters.status));
+  if (filters?.startDate) conditions.push(gte(responses.createdAt, filters.startDate));
+  if (filters?.endDate) conditions.push(lte(responses.createdAt, filters.endDate));
 
   return await db
     .select()
@@ -226,12 +202,8 @@ export async function updateResponseStatus(responseId: number, status: string, e
   if (!db) return;
 
   const updateData: any = { status, updatedAt: new Date() };
-  if (status === "published") {
-    updateData.publishedAt = new Date();
-  }
-  if (errorMessage) {
-    updateData.errorMessage = errorMessage;
-  }
+  if (status === "published") updateData.publishedAt = new Date();
+  if (errorMessage) updateData.errorMessage = errorMessage;
 
   await db.update(responses).set(updateData).where(eq(responses.id, responseId));
 }
@@ -268,10 +240,7 @@ export async function upsertTrustedshopCredentials(data: InsertTrustedshopCreden
     .limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(trustedshopCredentials)
-      .set(data)
-      .where(eq(trustedshopCredentials.id, existing[0].id));
+    await db.update(trustedshopCredentials).set(data).where(eq(trustedshopCredentials.id, existing[0].id));
     return existing[0];
   } else {
     const result = await db.insert(trustedshopCredentials).values(data);
@@ -304,10 +273,7 @@ export async function upsertTrustedshopReview(data: InsertTrustedshopReview): Pr
     .limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(trustedshopReviews)
-      .set(data)
-      .where(eq(trustedshopReviews.id, existing[0].id));
+    await db.update(trustedshopReviews).set(data).where(eq(trustedshopReviews.id, existing[0].id));
     return existing[0];
   } else {
     const result = await db.insert(trustedshopReviews).values(data);
@@ -315,14 +281,29 @@ export async function upsertTrustedshopReview(data: InsertTrustedshopReview): Pr
   }
 }
 
-// TrustedShop Responses queries
+// TrustedShop Responses queries — avec jointure pour récupérer les données de l'avis
 export async function getTrustedshopResponsesByUserId(userId: number, limit: number = 50, offset: number = 0) {
   const db = await getDb();
   if (!db) return [];
 
   return await db
-    .select()
+    .select({
+      id: trustedshopResponses.id,
+      userId: trustedshopResponses.userId,
+      reviewId: trustedshopResponses.reviewId,
+      responseText: trustedshopResponses.responseText,
+      status: trustedshopResponses.status,
+      errorMessage: trustedshopResponses.errorMessage,
+      publishedAt: trustedshopResponses.publishedAt,
+      createdAt: trustedshopResponses.createdAt,
+      updatedAt: trustedshopResponses.updatedAt,
+      reviewText: trustedshopReviews.reviewText,
+      reviewRating: trustedshopReviews.rating,
+      reviewAuthor: trustedshopReviews.authorName,
+      reviewDate: trustedshopReviews.reviewDate,
+    })
     .from(trustedshopResponses)
+    .innerJoin(trustedshopReviews, eq(trustedshopResponses.reviewId, trustedshopReviews.id))
     .where(eq(trustedshopResponses.userId, userId))
     .orderBy(desc(trustedshopResponses.createdAt))
     .limit(limit)
@@ -342,12 +323,8 @@ export async function updateTrustedshopResponseStatus(responseId: number, status
   if (!db) return;
 
   const updateData: any = { status, updatedAt: new Date() };
-  if (status === "published") {
-    updateData.publishedAt = new Date();
-  }
-  if (errorMessage) {
-    updateData.errorMessage = errorMessage;
-  }
+  if (status === "published") updateData.publishedAt = new Date();
+  if (errorMessage) updateData.errorMessage = errorMessage;
 
   await db.update(trustedshopResponses).set(updateData).where(eq(trustedshopResponses.id, responseId));
 }
