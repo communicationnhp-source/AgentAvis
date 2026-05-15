@@ -9,6 +9,7 @@ export default function TrustedShopDashboard() {
   const [, navigate] = useLocation();
 
   const listResponsesQuery = trpc.trustedshop.listResponses.useQuery({ limit: 50, offset: 0 });
+
   const processReviewsMutation = trpc.trustedshop.processReviews.useMutation({
     onSuccess: (data) => {
       const r = data.result;
@@ -20,9 +21,27 @@ export default function TrustedShopDashboard() {
     },
   });
 
+  const publishReplyMutation = trpc.trustedshop.publishReply.useMutation({
+    onSuccess: () => {
+      toast.success("Réponse publiée sur TrustedShop !");
+      listResponsesQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`Erreur de publication : ${error.message}`);
+    },
+  });
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Réponse copiée !");
+  };
+
+  const handlePublish = (response: any) => {
+    publishReplyMutation.mutate({
+      responseId: response.id,
+      reviewId: response.reviewId,
+      responseText: response.responseText,
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -69,8 +88,8 @@ export default function TrustedShopDashboard() {
             <div className="flex gap-3">
               <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-orange-900">
-                <p className="font-semibold mb-1">Mode Manuel</p>
-                <p>Cliquez sur "Générer les réponses" pour récupérer vos avis et générer des réponses IA. Ensuite copiez et publiez manuellement sur TrustedShop.</p>
+                <p className="font-semibold mb-1">Publication directe</p>
+                <p>Cliquez sur "Générer les réponses" puis sur "Publier" pour envoyer directement la réponse sur TrustedShop.</p>
               </div>
             </div>
           </CardContent>
@@ -116,11 +135,16 @@ export default function TrustedShopDashboard() {
                       <Copy className="w-4 h-4 mr-2" />Copier
                     </Button>
                     {response.status !== "published" && (
-                      <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={() => {
-                        handleCopy(response.responseText);
-                        toast.info("Réponse copiée — collez-la sur TrustedShop !");
-                      }}>
-                        <Send className="w-4 h-4 mr-2" />Publier
+                      <Button
+                        className="flex-1 bg-orange-600 hover:bg-orange-700"
+                        disabled={publishReplyMutation.isPending}
+                        onClick={() => handlePublish(response)}
+                      >
+                        {publishReplyMutation.isPending ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Publication...</>
+                        ) : (
+                          <><Send className="w-4 h-4 mr-2" />Publier</>
+                        )}
                       </Button>
                     )}
                   </div>
