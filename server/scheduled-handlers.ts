@@ -24,19 +24,25 @@ export async function handleProcessReviews(req: Request, res: Response) {
     const googleResults = await processAllReviews();
 
     // TrustedShop — pour chaque admin
-    const db = await getDb();
-    const tsResults: any[] = [];
-    if (db) {
-      const adminUsers = await db.select().from(users).where(eq(users.role, "admin"));
-      for (const user of adminUsers) {
-        try {
-          const result = await processTrustedShopReviews(user.id);
-          tsResults.push(result);
-        } catch (error) {
-          tsResults.push({ userId: user.id, processed: 0, failed: 1, errors: [String(error)] });
-        }
-      }
+   const db = await getDb();
+const tsResults: any[] = [];
+if (db) {
+  const adminUsers = await db.select().from(users).where(eq(users.role, "admin"));
+  console.log(`[Scheduled Handler] Found ${adminUsers.length} admin users for TS processing`);
+  for (const user of adminUsers) {
+    console.log(`[Scheduled Handler] Processing TS for user ${user.id}`);
+    try {
+      const result = await processTrustedShopReviews(user.id);
+      console.log(`[Scheduled Handler] TS result for user ${user.id}:`, JSON.stringify(result));
+      tsResults.push(result);
+    } catch (error) {
+      console.error(`[Scheduled Handler] TS error for user ${user.id}:`, error);
+      tsResults.push({ userId: user.id, processed: 0, failed: 1, errors: [String(error)] });
     }
+  }
+} else {
+  console.warn("[Scheduled Handler] DB not available for TS processing");
+}
 
     const totalProcessed = googleResults.reduce((sum, r) => sum + r.processed, 0)
       + tsResults.reduce((sum, r) => sum + r.processed, 0);
