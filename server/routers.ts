@@ -166,7 +166,42 @@ export const appRouter = router({
           message: error instanceof Error ? error.message : "Unknown error",
         });
       }
-    }),
+      publishReply: adminProcedure
+  .input((val: any) => ({
+    responseId: val.responseId as number,
+    reviewId: val.reviewId as number,
+    trustedshopReviewId: val.trustedshopReviewId as string,
+    responseText: val.responseText as string,
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { getTrustedshopCredentialsByUserId, getDb } = await import("./db");
+    const { TrustedShopAPI } = await import("./trustedshop-api");
+    const { trustedshopResponses } = await import("../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const creds = await getTrustedshopCredentialsByUserId(ctx.user.id);
+    if (!creds) throw new TRPCError({ code: "NOT_FOUND", message: "No TrustedShop credentials" });
+
+    const api = new TrustedShopAPI(creds.clientId, creds.clientSecret, creds.channelId);
+
+    try {
+      await api.postReply(input.trustedshopReviewId, input.responseText);
+
+      const db = await getDb();
+      if (db) {
+        await db
+          .update(trustedshopResponses)
+          .set({ status: "published", publishedAt: new Date() })
+          .where(eq(trustedshopResponses.id, input.responseId));
+      }
+
+      return { success: true };
+    } catch (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }),
 });
 
