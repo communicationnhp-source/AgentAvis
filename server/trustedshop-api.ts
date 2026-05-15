@@ -114,8 +114,8 @@ export class TrustedShopAPI {
       try {
         const response = await axios.post(
           `${ETRUSTED_API_BASE}/reviews/${reviewId}/reply`,
-          { text: replyText },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { comment: replyText, sendNotification: false },
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
         );
 
         return { success: true, responseId: response.data.id };
@@ -129,5 +129,3 @@ export class TrustedShopAPI {
 
     throw new Error(`Failed to post reply after ${maxRetries} attempts: ${lastError?.message}`);
   }
-}
-  
